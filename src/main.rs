@@ -12,24 +12,24 @@
  * <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-#![deny(warnings)]
+// #![deny(warnings)]
 
-use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
+use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time, BranchType};
 use git2::{DiffFormat, Error, Pathspec};
 use std::str;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct Args {
-    #[structopt(name = "topo-order", long)]
-    /// sort commits in topological order
-    flag_topo_order: bool,
-    #[structopt(name = "date-order", long)]
-    /// sort commits in date order
-    flag_date_order: bool,
-    #[structopt(name = "reverse", long)]
-    /// sort commits in reverse
-    flag_reverse: bool,
+    // #[structopt(name = "topo-order", long)]
+    // /// sort commits in topological order
+    // flag_topo_order: bool,
+    // #[structopt(name = "date-order", long)]
+    // /// sort commits in date order
+    // flag_date_order: bool,
+    // #[structopt(name = "reverse", long)]
+    // /// sort commits in reverse
+    // flag_reverse: bool,
     #[structopt(name = "author", long)]
     /// author to sort by
     flag_author: Option<String>,
@@ -39,9 +39,9 @@ struct Args {
     #[structopt(name = "pat", long = "grep")]
     /// pattern to filter commit messages by
     flag_grep: Option<String>,
-    #[structopt(name = "dir", long = "git-dir")]
-    /// alternative git directory to use
-    flag_git_dir: Option<String>,
+    // #[structopt(name = "dir", long = "git-dir")]
+    // /// alternative git directory to use
+    // flag_git_dir: Option<String>,
     #[structopt(name = "skip", long)]
     /// number of commits to skip
     flag_skip: Option<usize>,
@@ -76,57 +76,22 @@ struct Args {
 }
 
 fn run(args: &Args) -> Result<(), Error> {
-    let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
+    let path = ".";
+    // print!("{:#?}", path);
+    // let path = "/home/geeksesi/public_html/Rust";
     let repo = Repository::open(path)?;
     let mut revwalk = repo.revwalk()?;
 
     // Prepare the revwalk based on CLI parameters
-    let base = if args.flag_reverse {
-        git2::Sort::REVERSE
-    } else {
-        git2::Sort::NONE
-    };
-    revwalk.set_sorting(
-        base | if args.flag_topo_order {
-            git2::Sort::TOPOLOGICAL
-        } else if args.flag_date_order {
-            git2::Sort::TIME
-        } else {
-            git2::Sort::NONE
-        },
-    )?;
-    for commit in &args.arg_commit {
-        if commit.starts_with('^') {
-            let obj = repo.revparse_single(&commit[1..])?;
-            revwalk.hide(obj.id())?;
-            continue;
-        }
-        let revspec = repo.revparse(commit)?;
-        if revspec.mode().contains(git2::RevparseMode::SINGLE) {
-            revwalk.push(revspec.from().unwrap().id())?;
-        } else {
-            let from = revspec.from().unwrap().id();
-            let to = revspec.to().unwrap().id();
-            revwalk.push(to)?;
-            if revspec.mode().contains(git2::RevparseMode::MERGE_BASE) {
-                let base = repo.merge_base(from, to)?;
-                let o = repo.find_object(base, Some(ObjectType::Commit))?;
-                revwalk.push(o.id())?;
-            }
-            revwalk.hide(from)?;
-        }
-    }
-    if args.arg_commit.is_empty() {
-        revwalk.push_head()?;
-    }
+    let base = git2::Sort::NONE;
+    
+    revwalk.set_sorting(base)?;
+    revwalk.push_head()?;
 
     // Prepare our diff options and pathspec matcher
     let (mut diffopts, mut diffopts2) = (DiffOptions::new(), DiffOptions::new());
-    for spec in &args.arg_spec {
-        diffopts.pathspec(spec);
-        diffopts2.pathspec(spec);
-    }
-    let ps = Pathspec::new(args.arg_spec.iter())?;
+    let specs:Vec<String> = Vec::new(); 
+    let ps = Pathspec::new(specs)?;
 
     // Filter our revwalk based on the CLI parameters
     macro_rules! filter_try {
@@ -137,9 +102,15 @@ fn run(args: &Args) -> Result<(), Error> {
             }
         };
     }
+    let filter:Option<BranchType> = Some(BranchType::Local);
+    let branches = repo.branches(filter);
+    let bs;
+    branches.from_raw(bs);
+    println!("{:#?}", b);
     let revwalk = revwalk
         .filter_map(|id| {
             let id = filter_try!(id);
+            println!("{:?}", id);
             let commit = filter_try!(repo.find_commit(id));
             let parents = commit.parents().len();
             if parents < args.min_parents() {
@@ -231,25 +202,26 @@ fn log_message_matches(msg: Option<&str>, grep: &Option<String>) -> bool {
 }
 
 fn print_commit(commit: &Commit) {
-    println!("commit {}", commit.id());
+    // println!("commit {}", commit.id());
+    // println!("{:#?}", commit.tree());
 
-    if commit.parents().len() > 1 {
-        print!("Merge:");
-        for id in commit.parent_ids() {
-            print!(" {:.8}", id);
-        }
-        println!();
-    }
+    // if commit.parents().len() > 1 {
+    //     print!("Merge:");
+    //     for id in commit.parent_ids() {
+    //         print!(" {:.8}", id);
+    //     }
+    //     println!();
+    // }
 
-    let author = commit.author();
-    println!("Author: {}", author);
-    print_time(&author.when(), "Date:   ");
-    println!();
+    // let author = commit.author();
+    // println!("Author: {}", author);
+    // print_time(&author.when(), "Date:   ");
+    // println!();
 
-    for line in String::from_utf8_lossy(commit.message_bytes()).lines() {
-        println!("    {}", line);
-    }
-    println!();
+    // for line in String::from_utf8_lossy(commit.message_bytes()).lines() {
+    //     println!("    {}", line);
+    // }
+    // println!();
 }
 
 fn print_time(time: &Time, prefix: &str) {
